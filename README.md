@@ -77,6 +77,13 @@ No Coolify: **New Resource → Application** apontando para o mesmo repo, com **
 Env vars (exemplo):
 
 - `PORT=3000`
+
+Opção recomendada (1 variável):
+
+- `DATABASE_URL=postgres://postgres:***@SEU_HOST_INTERNO:5432/pirimatch`
+
+Ou, se preferir separado:
+
 - `PGHOST=<host do postgres no coolify>`
 - `PGPORT=5432`
 - `PGDATABASE=pirimatch`
@@ -98,7 +105,7 @@ No Coolify: **New Resource → Application** apontando para o repo, com **Root D
 
 Env vars:
 
-- `VITE_API_BASE=https://SEU-DOMINIO-DA-API`
+- `VITE_API_BASE=http://f4cgswwgscc4kgs0w48oc8w0.89.116.73.169.sslip.io`
 
 Comandos sugeridos:
 
