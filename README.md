@@ -116,3 +116,17 @@ Observações:
 
 - `VITE_API_BASE` é lido no build do Vite; depois que mudar no Coolify, faça redeploy do client.
 - Configure domínio/HTTPS no Coolify (ex: `api.seudominio.com` para a API e `app.seudominio.com` para o client).
+
+### Dica: deploy muito lento no Coolify
+
+Se o deploy estiver demorando demais, quase sempre é por 2 motivos:
+
+1) **Build context gigante** (mandando `node_modules/` ou `dist/` pro Docker).
+2) **Cache velho** (o Coolify reaproveitando build antigo).
+
+O repositório já inclui `.dockerignore` para evitar subir `node_modules/` e `client/dist`.
+
+No Coolify, para acelerar:
+
+- Garanta que o **Root Directory** está certo (`client` pro frontend, `server` pra API).
+- Use **Rebuild sem cache / Clear build cache** quando trocar `VITE_API_BASE`.

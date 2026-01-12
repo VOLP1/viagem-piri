@@ -1,0 +1,21 @@
+# VCS
+.git
+.gitignore
+
+# Node
+**/node_modules
+**/npm-debug.log
+**/yarn-error.log
+**/pnpm-debug.log
+
+# Build outputs
+client/dist
+server/dist
+
+# Local env
+**/.env
+**/.env.*
+
+# OS/editor
+.DS_Store
+.vscode
