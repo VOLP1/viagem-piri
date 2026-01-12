@@ -174,7 +174,7 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
       <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
 
       <div className="relative min-h-dvh flex flex-col">
-        <header className="px-6 py-4 border-b border-slate-800 bg-slate-950/40 backdrop-blur">
+        <header className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-800 bg-slate-950/40 backdrop-blur">
           <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
             <div>
               <h1 className="text-lg font-semibold tracking-tight">PiriMatch</h1>
@@ -189,15 +189,18 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
           </div>
         </header>
 
-        <main className="flex-1 px-6 py-8">
-          <div className="max-w-5xl mx-auto">
-          {lastError ? (
-            <div className="mb-6 rounded-xl border border-rose-900/50 bg-rose-950/40 px-4 py-3 text-rose-200 text-sm">
-              {lastError}
-            </div>
-          ) : null}
+        <main className="flex-1 px-4 sm:px-6 py-4 sm:py-8 min-h-0">
+          <div className="max-w-5xl mx-auto h-full flex flex-col min-h-0">
+            {lastError ? (
+              <div className="mb-4 sm:mb-6 rounded-xl border border-rose-900/50 bg-rose-950/40 px-4 py-3 text-rose-200 text-sm">
+                {lastError}
+              </div>
+            ) : null}
 
-            <div className="relative w-full max-w-md mx-auto" style={{ height: 640 }}>
+            <div
+              className="relative w-full max-w-md mx-auto flex-1 min-h-0"
+              style={{ maxHeight: 640 }}
+            >
               {remainingCount <= 0 ? (
                 <div className="h-full w-full rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur shadow-2xl grid place-items-center pm-fade-up">
                   <div className="px-6 text-center">
@@ -320,8 +323,8 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
                           </div>
 
                           <div className="mt-auto">
-                            <h2 className="text-3xl font-bold tracking-tight drop-shadow">{w.name}</h2>
-                            <p className="mt-2 text-sm text-slate-100/90 leading-relaxed line-clamp-3">
+                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight drop-shadow">{w.name}</h2>
+                            <p className="mt-2 text-sm text-slate-100/90 leading-relaxed line-clamp-2 sm:line-clamp-3">
                               {w.bio}
                             </p>
 
@@ -332,7 +335,7 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
                                 </div>
                                 <div className="min-w-0">
                                   <div className="text-sm font-semibold text-slate-100">Acesso</div>
-                                  <div className="text-sm text-slate-100/90 break-words line-clamp-2">
+                                  <div className="text-sm text-slate-100/90 break-words line-clamp-1 sm:line-clamp-2">
                                     {w.accessibility}
                                   </div>
                                 </div>
@@ -349,7 +352,7 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
                 </TinderCard>
               );
               })}
-          </div>
+            </div>
           </div>
         </main>
 
@@ -361,12 +364,12 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
             onClick={() => setSelected(null)}
           >
             <div
-              className="h-full w-full flex items-end sm:items-center justify-center p-4"
+              className="h-full w-full flex items-end sm:items-center justify-center p-3 sm:p-4"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="w-full max-w-md max-h-[90dvh] rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl flex flex-col">
                 <div
-                  className="h-40 bg-cover bg-center"
+                  className="h-32 sm:h-40 bg-cover bg-center"
                   style={{ backgroundImage: `url(${selected.image_url})` }}
                 >
                   <div className="h-full w-full bg-gradient-to-t from-slate-950/95 via-slate-950/40 to-slate-950/10" />
@@ -387,7 +390,7 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
                   </button>
                 </div>
 
-                <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">
+                <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
                   <div className="flex flex-wrap items-center gap-2">
                     {isReservationRequired(selected.reservation_rule) ? (
                       <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-500/20 text-amber-100 px-3 py-1 text-xs font-semibold">
