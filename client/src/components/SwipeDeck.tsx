@@ -190,17 +190,14 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
         </header>
 
         <main className="flex-1 px-4 sm:px-6 py-4 sm:py-8 min-h-0">
-          <div className="max-w-5xl mx-auto h-full flex flex-col min-h-0">
+          <div className="max-w-5xl mx-auto flex flex-col min-h-0">
             {lastError ? (
               <div className="mb-4 sm:mb-6 rounded-xl border border-rose-900/50 bg-rose-950/40 px-4 py-3 text-rose-200 text-sm">
                 {lastError}
               </div>
             ) : null}
 
-            <div
-              className="relative w-full max-w-md mx-auto flex-1 min-h-0"
-              style={{ maxHeight: 640 }}
-            >
+            <div className="relative w-full max-w-md mx-auto h-[70dvh] sm:h-[640px]">
               {remainingCount <= 0 ? (
                 <div className="h-full w-full rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur shadow-2xl grid place-items-center pm-fade-up">
                   <div className="px-6 text-center">
