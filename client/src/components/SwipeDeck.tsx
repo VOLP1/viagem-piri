@@ -62,7 +62,12 @@ type SwipeDeckProps = {
   userName: string;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+const VITE_API_BASE = String(import.meta.env.VITE_API_BASE || '').trim();
+const API_BASE = VITE_API_BASE || 'http://localhost:3000';
+
+function isLocalhostUrl(url: string) {
+  return url.includes('localhost') || url.includes('127.0.0.1');
+}
 
 const nf0 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
 const nf1 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
@@ -133,14 +138,28 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
       setLastError(null);
       setSendingIds((prev) => ({ ...prev, [waterfallId]: true }));
       try {
-        await axios.post(`${API_BASE}/vote`, {
-          user_name: userName,
-          waterfall_id: waterfallId,
-          vote_type: voteType
-        });
+        await axios.post(
+          `${API_BASE}/vote`,
+          {
+            user_name: userName,
+            waterfall_id: waterfallId,
+            vote_type: voteType
+          },
+          {
+            timeout: 10000
+          }
+        );
       } catch (err) {
         console.error('Vote request failed:', err);
-        setLastError(`Falha ao enviar seu voto. Verifique se o servidor está rodando em ${API_BASE}.`);
+
+        const onWeb = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
+        if (onWeb && isLocalhostUrl(API_BASE)) {
+          setLastError(
+            'Falha ao enviar seu voto. Este site foi compilado apontando para localhost. No Coolify, defina VITE_API_BASE como Build Variable e faça um Rebuild sem cache.'
+          );
+        } else {
+          setLastError(`Falha ao enviar seu voto. Verifique se a API está acessível em ${API_BASE}.`);
+        }
       } finally {
         setSendingIds((prev) => ({ ...prev, [waterfallId]: false }));
       }
