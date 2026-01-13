@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
-import TinderCard from 'react-tinder-card';
 import {
   AlertTriangle,
   Car,
@@ -104,44 +103,33 @@ function isReservationRequired(rule: string) {
   return rule.toLowerCase().includes('obrigatória');
 }
 
-function isAndroidChrome() {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent || '';
-  return ua.includes('Android') && ua.includes('Chrome') && !ua.includes('EdgA') && !ua.includes('OPR');
-}
-
 export default function SwipeDeck({ userName }: SwipeDeckProps) {
   const waterfalls = waterfallsRaw as Waterfall[];
-
-  const androidChrome = useMemo(() => isAndroidChrome(), []);
 
   const [lastError, setLastError] = useState<string | null>(null);
   const [sendingIds, setSendingIds] = useState<Record<number, boolean>>({});
   const [goneIds, setGoneIds] = useState<Record<number, true>>({});
   const [selected, setSelected] = useState<Waterfall | null>(null);
 
+  // Swipe state
+  const [swipeOffset, setSwipeOffset] = useState({ x: 0, y: 0 });
+  const [swipeRotation, setSwipeRotation] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const swipeStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
   const pointerRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const lastTapMovedRef = useRef(false);
 
   const ordered = useMemo(() => [...waterfalls].sort((a, b) => b.id - a.id), [waterfalls]);
-  const remainingCount = ordered.length - Object.keys(goneIds).length;
+  const visible = useMemo(() => ordered.filter((w) => !goneIds[w.id]), [ordered, goneIds]);
+  const remainingCount = visible.length;
 
-  useEffect(() => {
-    if (!selected) return;
+  // Render apenas top card para melhor performance
+  const visibleForRender = useMemo(() => {
+    return visible.slice(0, 1);
+  }, [visible]);
 
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSelected(null);
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [selected]);
+  const currentCard = visibleForRender[0] || null;
 
   const sendVote = useCallback(
     async (waterfallId: number, voteType: 'like' | 'pass') => {
@@ -177,17 +165,95 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
     [userName]
   );
 
+  // Swipe handlers
+  const handleSwipeStart = useCallback((clientX: number, clientY: number) => {
+    swipeStartRef.current = { x: clientX, y: clientY, time: Date.now() };
+    setIsSwiping(true);
+  }, []);
+
+  const handleSwipeMove = useCallback((clientX: number, clientY: number) => {
+    if (!swipeStartRef.current) return;
+    
+    const deltaX = clientX - swipeStartRef.current.x;
+    const deltaY = clientY - swipeStartRef.current.y;
+    
+    // Só atualiza visual se houver movimento horizontal significativo
+    if (Math.abs(deltaX) > 5) {
+      setSwipeOffset({ x: deltaX, y: deltaY * 0.3 });
+      setSwipeRotation(deltaX * 0.03);
+    }
+  }, []);
+
+  const handleSwipeEnd = useCallback((clientX: number, clientY: number) => {
+    if (!swipeStartRef.current || !currentCard) {
+      setIsSwiping(false);
+      setSwipeOffset({ x: 0, y: 0 });
+      setSwipeRotation(0);
+      swipeStartRef.current = null;
+      return;
+    }
+
+    const deltaX = clientX - swipeStartRef.current.x;
+    const deltaTime = Date.now() - swipeStartRef.current.time;
+    const velocity = Math.abs(deltaX) / deltaTime;
+
+    // Threshold: 100px ou velocidade rápida (e tempo mínimo para não pegar taps)
+    const threshold = 100;
+    const isSwipeGesture = (Math.abs(deltaX) > threshold || velocity > 0.5) && deltaTime > 50;
+
+    if (isSwipeGesture) {
+      const direction = deltaX > 0 ? 'right' : 'left';
+      const voteType: 'like' | 'pass' = direction === 'right' ? 'like' : 'pass';
+      
+      // Animate out
+      const finalX = direction === 'right' ? 1000 : -1000;
+      setSwipeOffset({ x: finalX, y: swipeOffset.y });
+      setSwipeRotation(finalX * 0.03);
+      
+      void sendVote(currentCard.id, voteType);
+      
+      setTimeout(() => {
+        setGoneIds((prev) => ({ ...prev, [currentCard.id]: true }));
+        setSwipeOffset({ x: 0, y: 0 });
+        setSwipeRotation(0);
+        setIsSwiping(false);
+        swipeStartRef.current = null;
+      }, 300);
+    } else {
+      // Reset - não foi um swipe válido
+      setSwipeOffset({ x: 0, y: 0 });
+      setSwipeRotation(0);
+      setIsSwiping(false);
+      swipeStartRef.current = null;
+    }
+  }, [currentCard, swipeOffset.y, sendVote]);
+
+  useEffect(() => {
+    if (!selected) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelected(null);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [selected]);
+
   return (
-    <div className="min-h-dvh relative">
+    <div className="min-h-dvh relative overflow-x-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900" />
       <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-indigo-500/15 blur-3xl" />
       <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
 
-      <div className="relative min-h-dvh flex flex-col">
+      <div className="relative min-h-dvh flex flex-col overflow-x-hidden">
         <header
-          className={`px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-800 bg-slate-950/40 ${
-            androidChrome ? '' : 'backdrop-blur'
-          }`}
+          className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-800 bg-slate-950/95"
         >
           <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
             <div>
@@ -204,19 +270,17 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
         </header>
 
         <main className="flex-1 px-4 sm:px-6 py-4 sm:py-8 min-h-0">
-          <div className="max-w-5xl mx-auto flex flex-col min-h-0">
+          <div className="max-w-5xl mx-auto flex flex-col items-center gap-6 min-h-0">
             {lastError ? (
-              <div className="mb-4 sm:mb-6 rounded-xl border border-rose-900/50 bg-rose-950/40 px-4 py-3 text-rose-200 text-sm">
+              <div className="w-full max-w-md mb-4 sm:mb-6 rounded-xl border border-rose-900/50 bg-rose-950/40 px-4 py-3 text-rose-200 text-sm">
                 {lastError}
               </div>
             ) : null}
 
-            <div className="relative w-full max-w-md mx-auto h-[min(640px,calc(100dvh-9rem))]">
+            <div className="relative w-full max-w-md h-[min(580px,calc(100dvh-16rem))] overflow-visible">
               {remainingCount <= 0 ? (
                 <div
-                  className={`h-full w-full rounded-3xl border border-slate-800 bg-slate-900/40 shadow-2xl grid place-items-center pm-fade-up ${
-                    androidChrome ? '' : 'backdrop-blur'
-                  }`}
+                  className="h-full w-full rounded-3xl border border-slate-800 bg-slate-900/95 shadow-2xl grid place-items-center pm-fade-up"
                 >
                   <div className="px-6 text-center">
                     <div className="mx-auto h-14 w-14 rounded-2xl bg-emerald-500/15 border border-emerald-300/20 grid place-items-center">
@@ -233,71 +297,111 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
                 </div>
               ) : null}
 
-              {ordered.map((w, idx) => {
-              const required = isReservationRequired(w.reservation_rule);
+              {currentCard ? (() => {
+                const w = currentCard;
+                const required = isReservationRequired(w.reservation_rule);
                 const crowd = Math.min(5, Math.max(1, Number(w.crowd_meter || 1)));
 
-                const driveDistance = formatKm(w.driving?.distance_km);
-                const driveTime = formatMinutes(w.driving?.duration_min);
-
-                const trailDistance = formatMeters(w.trail?.dist_m);
-                const trailTime = formatMinutes(w.trail?.time_min);
-                const trailDifficulty = w.trail?.difficulty || null;
-
-                const hasToilets = w.infra?.toilets;
-                const infraFood = w.infra?.food || null;
-                const infraParking = w.infra?.parking || null;
-                const infraSignal = w.infra?.signal || null;
-
-                const floodRisk = w.safety?.flood_risk || null;
-                const rainPolicy = w.safety?.rain_policy || null;
-
-                const website = w.website || null;
-
-              return (
-                <TinderCard
-                  key={w.id}
-                  onSwipe={(dir) => {
-                    const voteType: 'like' | 'pass' = dir === 'right' ? 'like' : 'pass';
-                    void sendVote(w.id, voteType);
-                  }}
-                  onCardLeftScreen={() => {
-                    setGoneIds((prev) => ({ ...prev, [w.id]: true }));
-                  }}
-                  preventSwipe={['up', 'down']}
-                  className="absolute inset-0"
-                  style={{ zIndex: ordered.length - idx }}
-                >
-                  <article className="h-full w-full rounded-3xl overflow-hidden shadow-2xl border border-slate-800 bg-slate-900 transition-transform duration-200">
-                    <div
-                      className="h-full w-full bg-cover bg-center"
-                      style={{ backgroundImage: `url(${w.image_url})` }}
+                return (
+                  <div 
+                    className="absolute inset-0"
+                    style={{
+                      transform: `translate(${swipeOffset.x}px, ${swipeOffset.y}px) rotate(${swipeRotation}deg)`,
+                      transition: isSwiping ? 'none' : 'transform 0.3s ease-out',
+                      willChange: 'transform',
+                    }}
+                  >
+                    <article 
+                      className="h-full w-full rounded-3xl overflow-hidden shadow-2xl border border-slate-800 bg-slate-900"
+                      onTouchStart={(e) => {
+                        const touch = e.touches[0];
+                        if (!touch) return;
+                        handleSwipeStart(touch.clientX, touch.clientY);
+                        pointerRef.current = { x: touch.clientX, y: touch.clientY, moved: false };
+                        lastTapMovedRef.current = false;
+                      }}
+                      onTouchMove={(e) => {
+                        const touch = e.touches[0];
+                        if (!touch) return;
+                        handleSwipeMove(touch.clientX, touch.clientY);
+                        
+                        const g = pointerRef.current;
+                        if (!g) return;
+                        const dx = Math.abs(touch.clientX - g.x);
+                        const dy = Math.abs(touch.clientY - g.y);
+                        if (dx + dy > 15) g.moved = true;
+                      }}
+                      onTouchEnd={(e) => {
+                        const touch = e.changedTouches[0];
+                        const g = pointerRef.current;
+                        pointerRef.current = null;
+                        
+                        const moved = Boolean(g?.moved);
+                        lastTapMovedRef.current = moved;
+                        
+                        if (touch) {
+                          handleSwipeEnd(touch.clientX, touch.clientY);
+                        }
+                        
+                        // Abre o modal se não houve movimento significativo
+                        if (!moved) {
+                          setTimeout(() => setSelected(w), 100);
+                        }
+                      }}
+                      onMouseDown={(e) => {
+                        handleSwipeStart(e.clientX, e.clientY);
+                        pointerRef.current = { x: e.clientX, y: e.clientY, moved: false };
+                        lastTapMovedRef.current = false;
+                      }}
+                      onMouseMove={(e) => {
+                        if (!swipeStartRef.current) return;
+                        handleSwipeMove(e.clientX, e.clientY);
+                        
+                        const g = pointerRef.current;
+                        if (!g) return;
+                        const dx = Math.abs(e.clientX - g.x);
+                        const dy = Math.abs(e.clientY - g.y);
+                        if (dx + dy > 15) g.moved = true;
+                      }}
+                      onMouseUp={(e) => {
+                        const g = pointerRef.current;
+                        pointerRef.current = null;
+                        
+                        const moved = Boolean(g?.moved);
+                        lastTapMovedRef.current = moved;
+                        
+                        handleSwipeEnd(e.clientX, e.clientY);
+                        
+                        // Abre o modal se não houve movimento significativo
+                        if (!moved) {
+                          setTimeout(() => setSelected(w), 100);
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (swipeStartRef.current) {
+                          handleSwipeEnd(e.clientX, e.clientY);
+                        }
+                      }}
                     >
-                        <div
-                          className="h-full w-full bg-gradient-to-t from-slate-950/95 via-slate-950/35 to-slate-950/15 p-5 flex flex-col"
-                          style={{ touchAction: 'none' }}
-                          onPointerDown={(e) => {
-                            pointerRef.current = { x: e.clientX, y: e.clientY, moved: false };
-                            lastTapMovedRef.current = false;
-                          }}
-                          onPointerMove={(e) => {
-                            const g = pointerRef.current;
-                            if (!g) return;
-                            const dx = Math.abs(e.clientX - g.x);
-                            const dy = Math.abs(e.clientY - g.y);
-                            if (dx + dy > 20) g.moved = true;
-                          }}
-                          onPointerUp={() => {
-                            const g = pointerRef.current;
-                            pointerRef.current = null;
-                            const moved = Boolean(g?.moved);
-                            lastTapMovedRef.current = moved;
-                            if (!moved) setSelected(w);
-                          }}
-                          onClick={() => {
-                            if (!lastTapMovedRef.current) setSelected(w);
-                          }}
-                        >
+                      <div
+                        className="h-full w-full bg-cover bg-center"
+                        style={{ backgroundImage: `url(${w.image_url})` }}
+                      >
+                        <div className="h-full w-full bg-gradient-to-t from-slate-950/95 via-slate-950/35 to-slate-950/15 p-5 flex flex-col">
+                          {/* Swipe indicators */}
+                          {Math.abs(swipeOffset.x) > 30 && (
+                            <div className="absolute top-20 left-0 right-0 flex justify-center pointer-events-none">
+                              {swipeOffset.x > 0 ? (
+                                <div className="bg-emerald-500/90 text-white font-bold text-2xl px-6 py-3 rounded-2xl border-4 border-white transform rotate-12">
+                                  CURTIR
+                                </div>
+                              ) : (
+                                <div className="bg-rose-500/90 text-white font-bold text-2xl px-6 py-3 rounded-2xl border-4 border-white transform -rotate-12">
+                                  PASSAR
+                                </div>
+                              )}
+                            </div>
+                          )}
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex flex-wrap items-center gap-2">
                               {required ? (
@@ -366,23 +470,58 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
                             </div>
 
                             <div className="mt-4 text-xs text-slate-200/70">
-                              Toque no card para ver detalhes (role).
+                              Toque no card para ver detalhes • Deslize para votar
                             </div>
                           </div>
                         </div>
-                    </div>
-                  </article>
-                </TinderCard>
-              );
-              })}
+                      </div>
+                    </article>
+                  </div>
+                );
+              })() : null}
             </div>
+
+            {/* Action buttons - FORA do card */}
+            {currentCard && !isSwiping && remainingCount > 0 ? (
+              <div className="flex items-center justify-center gap-6 w-full max-w-md pb-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!currentCard) return;
+                    void sendVote(currentCard.id, 'pass');
+                    setTimeout(() => {
+                      setGoneIds((prev) => ({ ...prev, [currentCard.id]: true }));
+                    }, 200);
+                  }}
+                  className="h-16 w-16 rounded-full border-4 border-white bg-rose-500 hover:bg-rose-600 shadow-2xl transition-all hover:scale-110 active:scale-95 flex items-center justify-center"
+                  aria-label="Passar"
+                >
+                  <X className="h-8 w-8 text-white" strokeWidth={3} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!currentCard) return;
+                    void sendVote(currentCard.id, 'like');
+                    setTimeout(() => {
+                      setGoneIds((prev) => ({ ...prev, [currentCard.id]: true }));
+                    }, 200);
+                  }}
+                  className="h-16 w-16 rounded-full border-4 border-white bg-emerald-500 hover:bg-emerald-600 shadow-2xl transition-all hover:scale-110 active:scale-95 flex items-center justify-center"
+                  aria-label="Curtir"
+                >
+                  <CheckCircle2 className="h-8 w-8 text-white" strokeWidth={3} />
+                </button>
+              </div>
+            ) : null}
           </div>
         </main>
 
         {selected
           ? createPortal(
               <div
-                className={`fixed inset-0 z-50 bg-black/60 ${androidChrome ? '' : 'backdrop-blur-sm'}`}
+                className="fixed inset-0 bg-black/80"
+                style={{ zIndex: 9999 }}
                 role="dialog"
                 aria-modal="true"
                 onClick={() => setSelected(null)}
@@ -391,7 +530,7 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
                   className="h-full w-full flex items-end sm:items-center justify-center p-3 sm:p-4"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="w-full max-w-md max-h-[90dvh] rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl flex flex-col">
+                  <div className="w-full max-w-md max-h-[90vh] rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl flex flex-col" style={{ maxHeight: 'calc(90vh - env(safe-area-inset-top) - env(safe-area-inset-bottom))' }}>
                     <div
                       className="h-32 sm:h-40 bg-cover bg-center"
                       style={{ backgroundImage: `url(${selected.image_url})` }}
@@ -414,7 +553,7 @@ export default function SwipeDeck({ userName }: SwipeDeckProps) {
                       </button>
                     </div>
 
-                    <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+                    <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
                       <div className="flex flex-wrap items-center gap-2">
                         {isReservationRequired(selected.reservation_rule) ? (
                           <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-500/20 text-amber-100 px-3 py-1 text-xs font-semibold">
